@@ -1,0 +1,37 @@
+{
+  "name": "shellforge",
+  "version": "0.1.0",
+  "description": "A fast native terminal emulator for Linux and macOS.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc && vite build",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:deb": "tauri build --bundles deb",
+    "tauri:build:dmg": "tauri build --bundles dmg"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2",
+    "@xterm/addon-fit": "latest",
+    "@xterm/xterm": "latest",
+    "react": "18",
+    "react-dom": "18"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  },
+  "keywords": [
+    "terminal",
+    "tauri",
+    "pty"
+  ],
+  "author": "",
+  "license": "MIT"
+}
