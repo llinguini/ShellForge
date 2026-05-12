@@ -32,14 +32,14 @@ Download the latest `.dmg` from [Releases](../../releases) and open it.
 ```bash
 # Prerequisites: Rust, Node.js 18+, system dependencies for Tauri
 npm install
-npm run tauri build
+npm run tauri:build
 ```
 
 ## Development
 
 ```bash
 npm install
-npm run tauri dev
+npm run tauri:dev
 ```
 
 ## Keyboard shortcuts

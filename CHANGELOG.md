@@ -14,3 +14,4 @@
 - Unix socket listener at /tmp/shellforge.sock
 - Copy/paste support (Ctrl+Shift+C / Ctrl+Shift+V)
 - .deb and .dmg build targets
+- Release workflow derives bundle versions from Git tags

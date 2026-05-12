@@ -81,8 +81,15 @@ the workspace and split-panel xterm.js UI.
   `export PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH"`.
 - The Linux build was validated with Node `v20.20.2`, npm `10.8.2`, Rust
   `1.95.0`, Tauri CLI `2.11.1`, and WebKitGTK `2.48.3`.
+- The release workflow derives the build version from `github.ref_name`
+  tags like `v0.1.2`, then patches npm, Cargo, and Tauri metadata in the
+  runner before bundling. Tauri artifact names use that patched metadata
+  version.
+- The release workflow needs `contents: write`, has workflow concurrency,
+  and serializes Linux/macOS matrix builds so only one runner creates the
+  GitHub release at a time.
 - The Linux `.deb` bundle is generated at
-  `src-tauri/target/release/bundle/deb/ShellForge_0.1.0_amd64.deb` when
+  `src-tauri/target/release/bundle/deb/ShellForge_<version>_amd64.deb` when
   `CARGO_TARGET_DIR="$PWD/src-tauri/target"` is set.
 
 ## Current Caveats

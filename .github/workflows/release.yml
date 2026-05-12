@@ -8,9 +8,15 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   build:
     strategy:
+      fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - os: ubuntu-latest
@@ -35,10 +41,57 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Sync app version from tag
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+
+          const version = process.env.GITHUB_REF_NAME?.replace(/^v/, "");
+          const isValidVersion =
+            /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version ?? "");
+          if (!version || !isValidVersion) {
+            throw new Error(`Invalid release tag: ${process.env.GITHUB_REF_NAME}`);
+          }
+
+          const updateJson = (path, update) => {
+            const content = JSON.parse(fs.readFileSync(path, "utf8"));
+            update(content);
+            fs.writeFileSync(path, `${JSON.stringify(content, null, 2)}\n`);
+          };
+
+          const updateText = (path, update) => {
+            fs.writeFileSync(path, update(fs.readFileSync(path, "utf8")));
+          };
+
+          updateJson("package.json", (json) => {
+            json.version = version;
+          });
+          updateJson("package-lock.json", (json) => {
+            json.version = version;
+            json.packages[""].version = version;
+          });
+          updateJson("src-tauri/tauri.conf.json", (json) => {
+            json.version = version;
+          });
+          updateText("src-tauri/Cargo.toml", (text) =>
+            text.replace(/^version = ".*"$/m, `version = "${version}"`),
+          );
+          updateText("src-tauri/Cargo.lock", (text) =>
+            text.replace(
+              /(\[\[package\]\]\nname = "shellforge"\nversion = ")[^"]+(")/,
+              `$1${version}$2`,
+            ),
+          );
+          NODE
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
 
       - uses: tauri-apps/tauri-action@v0
         env:
