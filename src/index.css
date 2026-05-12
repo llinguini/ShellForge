@@ -210,6 +210,18 @@ button {
   white-space: pre;
 }
 
+.terminal-syntax-highlight {
+  position: absolute;
+  z-index: 4;
+  display: none;
+  overflow: hidden;
+  background: #1a1a1a;
+  font-family: "JetBrains Mono", "Fira Code", "DejaVu Sans Mono", monospace;
+  font-size: 13px;
+  pointer-events: none;
+  white-space: pre;
+}
+
 .context-menu {
   position: fixed;
   z-index: 20;

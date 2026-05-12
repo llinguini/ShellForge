@@ -15,3 +15,6 @@
 - Copy/paste support (Ctrl+Shift+C / Ctrl+Shift+V)
 - .deb and .dmg build targets
 - Release workflow derives bundle versions from Git tags
+- Desktop bundle icons for Linux and macOS packages
+- Current input syntax highlighting with configurable token colors
+- Unicode-safe input buffer tracking for special and multi-byte characters

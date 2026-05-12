@@ -14,6 +14,39 @@ type ClipboardSource = "clipboard" | "primary";
 const HISTORY_OSC_PREFIX = "\x1b]777;ShellForgeHistory;";
 const OSC_TERMINATOR = "\x07";
 const HISTORY_SUGGESTION_LIMIT = 50;
+const MULTI_WORD_COMMANDS = new Set([
+  "apt",
+  "cargo",
+  "docker",
+  "git",
+  "kubectl",
+  "npm",
+  "systemctl",
+  "yarn",
+]);
+
+export interface SyntaxTheme {
+  command: string;
+  subcommand: string;
+  flag: string;
+  string: string;
+  argument: string;
+}
+
+export const defaultSyntaxTheme: SyntaxTheme = {
+  command: "#89e051",
+  subcommand: "#61afef",
+  flag: "#e5c07b",
+  string: "#e06c75",
+  argument: "#abb2bf",
+};
+
+type SyntaxTokenType = keyof SyntaxTheme;
+
+interface SyntaxToken {
+  text: string;
+  type: SyntaxTokenType;
+}
 
 interface TerminalProps {
   active: boolean;
@@ -39,6 +72,7 @@ interface CachedTerminal {
   suggestionList: string[];
   suggestionListCwd: string;
   suggestionListPrefix: string;
+  syntaxElement: HTMLDivElement | null;
   terminal: XtermTerminal;
   titleDisposable: IDisposable;
   unlistenPromise: Promise<() => void>;
@@ -70,6 +104,7 @@ export function disposeTerminal(id: string) {
     window.clearTimeout(cached.clipboardSyncTimer);
   }
   cached.ghostElement?.remove();
+  cached.syntaxElement?.remove();
   cached.terminal.dispose();
   void cached.unlistenPromise.then((unlisten) => unlisten());
   terminalCache.delete(id);
@@ -108,6 +143,7 @@ export function Terminal({
 
     attachTerminalElement(cached.terminal, container);
     ensureGhostElement(cached, container);
+    ensureSyntaxElement(cached, container);
     terminalRef.current = cached.terminal;
     fitAddonRef.current = cached.fitAddon;
 
@@ -125,7 +161,7 @@ export function Terminal({
       }).catch((error) => console.error("failed to resize PTY", error));
 
       cached.terminal.refresh(0, Math.max(0, cached.terminal.rows - 1));
-      updateGhostOverlay(cached);
+      updateInputOverlays(cached);
 
       if (focus) {
         cached.terminal.focus();
@@ -164,7 +200,7 @@ export function Terminal({
           }).catch((error) => console.error("failed to resize PTY", error));
 
           terminal.refresh(0, Math.max(0, terminal.rows - 1));
-          updateGhostOverlay(terminalCache.get(id));
+          updateInputOverlays(terminalCache.get(id));
           terminal.focus();
         });
       });
@@ -241,7 +277,7 @@ function getOrCreateTerminal(id: string) {
     if (event.payload.id === id) {
       const output = processPtyOutput(entry, event.payload.data);
       if (output) {
-        terminal.write(output, () => updateGhostOverlay(entry));
+        terminal.write(output, () => updateInputOverlays(entry));
       }
     }
   });
@@ -262,12 +298,17 @@ function getOrCreateTerminal(id: string) {
     suggestionList: [],
     suggestionListCwd: "",
     suggestionListPrefix: "",
+    syntaxElement: null,
     terminal,
     titleDisposable,
     unlistenPromise,
   };
 
   terminal.attachCustomKeyEventHandler((event) => {
+    if (event.type !== "keydown") {
+      return true;
+    }
+
     if (event.type === "keydown" && event.key === "ArrowUp" && entry.inputBuffer) {
       void moveHistorySuggestion(entry, "older");
       return false;
@@ -284,6 +325,7 @@ function getOrCreateTerminal(id: string) {
         entry.inputBuffer = entry.suggestion;
         resetSuggestionNavigation(entry);
         clearSuggestion(entry);
+        updateSyntaxOverlay(entry);
         void invoke("write_to_pty", { id, data: remaining }).catch((error) => {
           console.error("failed to accept history suggestion", error);
         });
@@ -297,26 +339,40 @@ function getOrCreateTerminal(id: string) {
       return false;
     }
 
-    if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) {
+    const key = event.key.toLowerCase();
+    if (event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey) {
+      if (key === "c") {
+        const selection = terminal.getSelection();
+        if (selection) {
+          void writeClipboard("clipboard", selection);
+        }
+        return false;
+      }
+
+      if (key === "v") {
+        void pasteFromClipboard(id, "clipboard");
+        return false;
+      }
+    }
+
+    if (isInputAbort(event)) {
+      resetInputBuffer(entry);
       return true;
     }
 
-    if (event.type !== "keydown") {
-      return false;
+    if (event.key === "Enter") {
+      resetInputBuffer(entry);
+      return true;
     }
 
-    const key = event.key.toLowerCase();
-    if (key === "c") {
-      const selection = terminal.getSelection();
-      if (selection) {
-        void writeClipboard("clipboard", selection);
-      }
-      return false;
+    if (event.key === "Backspace" && isPlainInputKey(event)) {
+      removeLastInputCharacter(entry);
+      return true;
     }
 
-    if (key === "v") {
-      void pasteFromClipboard(id, "clipboard");
-      return false;
+    if (event.key.length === 1 && isPlainInputKey(event)) {
+      appendInputCharacter(entry, event.key);
+      return true;
     }
 
     return true;
@@ -337,30 +393,18 @@ function attachTerminalElement(terminal: XtermTerminal, container: HTMLElement) 
 
 function handleTerminalInput(cached: CachedTerminal, data: string) {
   if (data === "\r") {
-    cached.inputBuffer = "";
-    resetSuggestionNavigation(cached);
-    clearSuggestion(cached);
-    return;
-  }
-
-  if (data === "\x7f") {
-    cached.inputBuffer = cached.inputBuffer.slice(0, -1);
-    resetSuggestionNavigation(cached);
-    void requestHistorySuggestion(cached);
+    resetInputBuffer(cached);
     return;
   }
 
   if (data === "\x03" || data === "\x04") {
-    cached.inputBuffer = "";
-    resetSuggestionNavigation(cached);
-    clearSuggestion(cached);
+    resetInputBuffer(cached);
     return;
   }
 
-  if (/^[\x20-\x7e]+$/.test(data)) {
-    cached.inputBuffer += data;
-    resetSuggestionNavigation(cached);
-    void requestHistorySuggestion(cached);
+  const characters = [...data];
+  if (characters.length > 1 && characters.every(isPrintableCharacter)) {
+    appendInputCharacter(cached, data);
     return;
   }
 
@@ -369,6 +413,48 @@ function handleTerminalInput(cached: CachedTerminal, data: string) {
     clearSuggestion(cached);
     return;
   }
+}
+
+function appendInputCharacter(cached: CachedTerminal, character: string) {
+  cached.inputBuffer += character;
+  resetSuggestionNavigation(cached);
+  updateSyntaxOverlay(cached);
+  void requestHistorySuggestion(cached);
+}
+
+function removeLastInputCharacter(cached: CachedTerminal) {
+  if (!cached.inputBuffer) {
+    return;
+  }
+
+  cached.inputBuffer = [...cached.inputBuffer].slice(0, -1).join("");
+  resetSuggestionNavigation(cached);
+  updateSyntaxOverlay(cached);
+  void requestHistorySuggestion(cached);
+}
+
+function resetInputBuffer(cached: CachedTerminal) {
+  cached.inputBuffer = "";
+  resetSuggestionNavigation(cached);
+  clearSuggestion(cached);
+  updateSyntaxOverlay(cached);
+}
+
+function isPlainInputKey(event: KeyboardEvent) {
+  return !event.altKey && !event.ctrlKey && !event.metaKey;
+}
+
+function isInputAbort(event: KeyboardEvent) {
+  return (
+    event.ctrlKey
+    && !event.altKey
+    && !event.metaKey
+    && ["c", "d"].includes(event.key.toLowerCase())
+  );
+}
+
+function isPrintableCharacter(character: string) {
+  return character.length > 0 && !/[\u0000-\u001f\u007f]/.test(character);
 }
 
 async function requestHistorySuggestion(cached: CachedTerminal) {
@@ -503,6 +589,11 @@ function clearSuggestion(cached: CachedTerminal) {
   updateGhostOverlay(cached);
 }
 
+function updateInputOverlays(cached?: CachedTerminal) {
+  updateSyntaxOverlay(cached);
+  updateGhostOverlay(cached);
+}
+
 function processPtyOutput(cached: CachedTerminal, data: string) {
   let buffer = cached.pendingOutput + data;
   cached.pendingOutput = "";
@@ -588,6 +679,64 @@ function ensureGhostElement(cached: CachedTerminal, container: HTMLElement) {
   }
 }
 
+function ensureSyntaxElement(cached: CachedTerminal, container: HTMLElement) {
+  if (cached.syntaxElement?.isConnected) {
+    return;
+  }
+
+  const element = document.createElement("div");
+  element.className = "terminal-syntax-highlight";
+  cached.syntaxElement = element;
+
+  const viewport = cached.terminal.element?.querySelector(".xterm-viewport");
+  const parent = viewport?.parentElement ?? cached.terminal.element ?? container;
+  if (parent instanceof HTMLElement) {
+    parent.style.position = parent.style.position || "relative";
+    parent.appendChild(element);
+  }
+}
+
+function updateSyntaxOverlay(cached?: CachedTerminal) {
+  if (!cached?.syntaxElement) {
+    return;
+  }
+
+  if (!cached.inputBuffer) {
+    cached.syntaxElement.replaceChildren();
+    cached.syntaxElement.style.display = "none";
+    return;
+  }
+
+  const metrics = cellMetrics(cached.terminal);
+  const terminalElement = cached.terminal.element;
+  const screen = terminalElement?.querySelector(".xterm-screen");
+  const parent = cached.syntaxElement.parentElement;
+  if (!metrics || !terminalElement || !(screen instanceof HTMLElement) || !parent) {
+    cached.syntaxElement.style.display = "none";
+    return;
+  }
+
+  const position = inputStartPosition(cached);
+  if (!position) {
+    cached.syntaxElement.style.display = "none";
+    return;
+  }
+
+  const parentRect = parent.getBoundingClientRect();
+  const screenRect = screen.getBoundingClientRect();
+  const left = screenRect.left - parentRect.left + position.column * metrics.width;
+  const top = screenRect.top - parentRect.top + position.row * metrics.height;
+
+  cached.syntaxElement.replaceChildren(...syntaxTokenElements(cached.inputBuffer));
+  cached.syntaxElement.style.display = "block";
+  cached.syntaxElement.style.left = `${left}px`;
+  cached.syntaxElement.style.lineHeight = `${metrics.height}px`;
+  cached.syntaxElement.style.minHeight = `${metrics.height}px`;
+  cached.syntaxElement.style.top = `${top}px`;
+  cached.syntaxElement.style.width =
+    `${inputCellLength(cached.inputBuffer) * metrics.width}px`;
+}
+
 function updateGhostOverlay(cached?: CachedTerminal) {
   if (!cached?.ghostElement) {
     return;
@@ -640,6 +789,111 @@ function cellMetrics(terminal: XtermTerminal) {
     height: element.clientHeight / Math.max(1, terminal.rows),
     width: element.clientWidth / Math.max(1, terminal.cols),
   };
+}
+
+function inputStartPosition(cached: CachedTerminal) {
+  const buffer = cached.terminal.buffer.active;
+  let column = buffer.cursorX - inputCellLength(cached.inputBuffer);
+  let row = buffer.cursorY;
+
+  while (column < 0) {
+    column += cached.terminal.cols;
+    row -= 1;
+  }
+
+  if (row < 0) {
+    return null;
+  }
+
+  return { column, row };
+}
+
+function inputCellLength(value: string) {
+  return [...value].length;
+}
+
+function syntaxTokenElements(input: string) {
+  return tokenizeSyntax(input).map((token) => {
+    const element = document.createElement("span");
+    element.textContent = token.text;
+    element.style.color = defaultSyntaxTheme[token.type];
+    return element;
+  });
+}
+
+function tokenizeSyntax(input: string): SyntaxToken[] {
+  const parts = input.split(/( +)/);
+  const tokens: SyntaxToken[] = [];
+  let command = "";
+  let tokenIndex = 0;
+  let activeQuote: "'" | "\"" | null = null;
+
+  for (const part of parts) {
+    if (!part) {
+      continue;
+    }
+
+    if (/^ +$/.test(part)) {
+      tokens.push({ text: part, type: "argument" });
+      continue;
+    }
+
+    const type = syntaxTokenType(part, tokenIndex, command, activeQuote);
+    tokens.push({ text: part, type });
+
+    if (tokenIndex === 0) {
+      command = part;
+    }
+
+    activeQuote = nextQuoteState(part, activeQuote);
+    tokenIndex += 1;
+  }
+
+  return tokens;
+}
+
+function syntaxTokenType(
+  token: string,
+  tokenIndex: number,
+  command: string,
+  activeQuote: "'" | "\"" | null,
+): SyntaxTokenType {
+  if (tokenIndex === 0) {
+    return "command";
+  }
+
+  if (activeQuote || token.startsWith("\"") || token.startsWith("'")) {
+    return "string";
+  }
+
+  if (token.startsWith("-")) {
+    return "flag";
+  }
+
+  if (tokenIndex === 1 && MULTI_WORD_COMMANDS.has(command)) {
+    return "subcommand";
+  }
+
+  return "argument";
+}
+
+function nextQuoteState(token: string, activeQuote: "'" | "\"" | null) {
+  let quote = activeQuote;
+
+  for (const character of token) {
+    if (quote) {
+      if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (character === "\"" || character === "'") {
+      quote = character;
+    }
+  }
+
+  return quote;
 }
 
 function currentDirectoryName(title: string) {

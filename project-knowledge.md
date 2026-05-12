@@ -69,6 +69,11 @@ the workspace and split-panel xterm.js UI.
 - Ghost text uses xterm internals
   `_core._renderService.dimensions.actualCellWidth/Height` with a DOM fallback.
   It is not written into the terminal buffer.
+- `Terminal.tsx` tracks printable input from `KeyboardEvent.key` instead of
+  ASCII-only PTY data. Backspace removes the last Unicode codepoint from the
+  input buffer.
+- The current input syntax overlay is separate from ghost text, uses the same
+  xterm cell metrics, and colors tokens through `defaultSyntaxTheme`.
 
 ## Build Notes
 
@@ -88,6 +93,9 @@ the workspace and split-panel xterm.js UI.
 - The release workflow needs `contents: write`, has workflow concurrency,
   and serializes Linux/macOS matrix builds so only one runner creates the
   GitHub release at a time.
+- `src-tauri/tauri.conf.json` must declare `bundle.icon`; otherwise the
+  Linux `.deb` can generate a `.desktop` entry with `Icon=shellforge` but no
+  installed files under `usr/share/icons`.
 - The Linux `.deb` bundle is generated at
   `src-tauri/target/release/bundle/deb/ShellForge_<version>_amd64.deb` when
   `CARGO_TARGET_DIR="$PWD/src-tauri/target"` is set.
