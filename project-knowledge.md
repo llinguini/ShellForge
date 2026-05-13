@@ -21,13 +21,18 @@ the workspace and split-panel xterm.js UI.
 - `src/components/Terminal.tsx` caches xterm instances by panel id so layout
   remounts during splits or workspace switches preserve the visible buffer.
 - `src/components/Terminal.tsx` also owns terminal clipboard behavior:
-  `Ctrl+Shift+C`, `Ctrl+Shift+V`, context menu copy/paste, selection sync to
-  Linux PRIMARY, and middle-click PRIMARY paste.
+  Cmd/Ctrl+Shift+C, Cmd/Ctrl+Shift+V (platform rules in `src/lib/accelerators.ts`),
+  context menu copy/paste, selection sync to Linux PRIMARY, and middle-click
+  PRIMARY paste.
 - `src/components/Terminal.tsx` intercepts ShellForge OSC history markers before
   writing PTY output to xterm, sends history entries through Tauri commands, and
   renders command suggestions as an overlay sibling of the xterm viewport.
 - `src/components/App.tsx` owns workspace state, active panel focus, shortcuts,
-  and context menu actions.
+  and context menu actions. Accelerator chords use `src/lib/accelerators.ts`:
+  on macOS **Cmd+Shift** or **Ctrl+Shift** for splits, workspaces, and terminal
+  copy/paste; on Linux **Ctrl+Shift** only for those chords. Panel navigation
+  uses **Alt+Arrow** (Option+Arrow on macOS). Shell interrupt stays **Ctrl+C**
+  (see `Terminal.tsx` `isInputAbort`).
 - `src-tauri/src/history.rs` owns the SQLite command history database at
   `~/.shellforge/history.db`.
 - Context menu items render action labels on the left and shortcut hints on the

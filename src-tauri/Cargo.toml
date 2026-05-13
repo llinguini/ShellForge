@@ -1,6 +1,6 @@
 [package]
 name = "shellforge"
-version = "0.1.0"
+version = "0.1.1"
 description = "A fast native terminal emulator for Linux and macOS."
 authors = ["ShellForge"]
 edition = "2021"

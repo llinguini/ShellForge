@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.1] - 2026-05-13
+
+### Added
+
+- macOS-style Cmd+Shift shortcuts for workspace, split, and clipboard actions
+  (Ctrl+Shift remains supported on macOS)
+- `Close workspace` entry in the terminal context menu with shortcut hint
+
+### Changed
+
+- README keyboard table documents Linux vs macOS modifiers and notes that
+  shortcuts are built-in; shell signals stay on Ctrl on all platforms
+- Context menu shortcut hints follow the active platform (Cmd vs Ctrl)
+
 ## [0.1.0] - 2025
 
 ### Added

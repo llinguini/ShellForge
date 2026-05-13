@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XtermTerminal, type IDisposable } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
+import { isAccelShiftChord } from "../lib/accelerators";
 import "@xterm/xterm/css/xterm.css";
 
 interface PtyOutputPayload {
@@ -340,7 +341,7 @@ function getOrCreateTerminal(id: string) {
     }
 
     const key = event.key.toLowerCase();
-    if (event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey) {
+    if (isAccelShiftChord(event)) {
       if (key === "c") {
         const selection = terminal.getSelection();
         if (selection) {

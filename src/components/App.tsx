@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { formatAccelShiftLetter, isAccelShiftChord } from "../lib/accelerators";
 import { PanelTree } from "./PanelTree";
 import { TabBar } from "./TabBar";
 import { copyTerminalSelection, disposeTerminal, pasteClipboardIntoTerminal } from "./Terminal";
@@ -254,19 +255,20 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "e") {
+      const chordKey = event.key.toLowerCase();
+      if (isAccelShiftChord(event) && chordKey === "e") {
         event.preventDefault();
         splitPanelById(activePanelId, "vertical");
-      } else if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "o") {
+      } else if (isAccelShiftChord(event) && chordKey === "o") {
         event.preventDefault();
         splitPanelById(activePanelId, "horizontal");
-      } else if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "w") {
+      } else if (isAccelShiftChord(event) && chordKey === "w") {
         event.preventDefault();
         closePanelById(activePanelId);
-      } else if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "t") {
+      } else if (isAccelShiftChord(event) && chordKey === "t") {
         event.preventDefault();
         createWorkspace();
-      } else if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "q") {
+      } else if (isAccelShiftChord(event) && chordKey === "q") {
         event.preventDefault();
         closeWorkspace();
       } else if (event.altKey && event.key.startsWith("Arrow")) {
@@ -325,29 +327,33 @@ export function App() {
         <div className="context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
           <button type="button" onClick={() => copyTerminalSelection(contextMenu.panelId)}>
             <span>Copy</span>
-            <span className="context-menu-shortcut">Ctrl+Shift+C</span>
+            <span className="context-menu-shortcut">{formatAccelShiftLetter("C")}</span>
           </button>
           <button type="button" onClick={() => pasteClipboardIntoTerminal(contextMenu.panelId)}>
             <span>Paste</span>
-            <span className="context-menu-shortcut">Ctrl+Shift+V</span>
+            <span className="context-menu-shortcut">{formatAccelShiftLetter("V")}</span>
           </button>
           <div className="context-menu-divider" />
           <button type="button" onClick={() => splitPanelById(contextMenu.panelId, "vertical")}>
             <span>Split vertical</span>
-            <span className="context-menu-shortcut">Ctrl+Shift+E</span>
+            <span className="context-menu-shortcut">{formatAccelShiftLetter("E")}</span>
           </button>
           <button type="button" onClick={() => splitPanelById(contextMenu.panelId, "horizontal")}>
             <span>Split horizontal</span>
-            <span className="context-menu-shortcut">Ctrl+Shift+O</span>
+            <span className="context-menu-shortcut">{formatAccelShiftLetter("O")}</span>
           </button>
           <button type="button" onClick={() => closePanelById(contextMenu.panelId)}>
             <span>Close panel</span>
-            <span className="context-menu-shortcut">Ctrl+Shift+W</span>
+            <span className="context-menu-shortcut">{formatAccelShiftLetter("W")}</span>
           </button>
           <div className="context-menu-divider" />
           <button type="button" onClick={createWorkspace}>
             <span>New workspace</span>
-            <span className="context-menu-shortcut">Ctrl+Shift+T</span>
+            <span className="context-menu-shortcut">{formatAccelShiftLetter("T")}</span>
+          </button>
+          <button type="button" onClick={() => closeWorkspace()}>
+            <span>Close workspace</span>
+            <span className="context-menu-shortcut">{formatAccelShiftLetter("Q")}</span>
           </button>
         </div>
       ) : null}

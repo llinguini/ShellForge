@@ -44,14 +44,22 @@ npm run tauri:dev
 
 ## Keyboard shortcuts
 
-| Action | Shortcut |
-|---|---|
-| Split vertical | Ctrl+Shift+E |
-| Split horizontal | Ctrl+Shift+O |
-| Close panel | Ctrl+Shift+W |
-| Move between panels | Alt+Arrow keys |
-| New workspace | Ctrl+Shift+T |
-| Close workspace | Ctrl+Shift+Q |
+Shortcuts are built-in (not user-configurable in settings). On macOS,
+**Cmd** is the primary modifier for ShellForge chords; **Ctrl+Shift** chords
+still work for parity with Linux. Shell control characters (for example
+interrupt with **Ctrl+C**) stay on **Ctrl** on every platform, like other
+terminal emulators.
+
+| Action | Linux | macOS |
+| --- | --- | --- |
+| Copy | Ctrl+Shift+C | Cmd+Shift+C (Ctrl+Shift+C also) |
+| Paste | Ctrl+Shift+V | Cmd+Shift+V (Ctrl+Shift+V also) |
+| Split vertical | Ctrl+Shift+E | Cmd+Shift+E (Ctrl+Shift+E also) |
+| Split horizontal | Ctrl+Shift+O | Cmd+Shift+O (Ctrl+Shift+O also) |
+| Close panel | Ctrl+Shift+W | Cmd+Shift+W (Ctrl+Shift+W also) |
+| Move between panels | Alt+Arrow keys | Option+Arrow keys |
+| New workspace | Ctrl+Shift+T | Cmd+Shift+T (Ctrl+Shift+T also) |
+| Close workspace | Ctrl+Shift+Q | Cmd+Shift+Q (Ctrl+Shift+Q also) |
 
 ## License
 
