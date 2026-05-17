@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3] - 2026-05-17
+
+### Changed
+
+- Replaced all app icons with a ShellForge palette mark (terminal prompt on warm
+  dark background). Source: `src-tauri/icons/icon.svg`, generated via `tauri icon`
+
 ## [0.1.2] - 2026-05-17
 
 ### Changed

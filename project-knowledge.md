@@ -103,6 +103,9 @@ the workspace and split-panel xterm.js UI.
 - The release workflow needs `contents: write`, has workflow concurrency,
   and serializes Linux/macOS matrix builds so only one runner creates the
   GitHub release at a time.
+- App icon source of truth: `src-tauri/icons/icon.svg` (ShellForge palette).
+  Regenerate platform assets with `npx tauri icon src-tauri/icons/icon.svg -o
+  src-tauri/icons`. Web favicon: `public/favicon.png` (from 32x32 export).
 - `src-tauri/tauri.conf.json` must declare `bundle.icon`; otherwise the
   Linux `.deb` can generate a `.desktop` entry with `Icon=shellforge` but no
   installed files under `usr/share/icons`.
