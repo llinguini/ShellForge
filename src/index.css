@@ -1,265 +1,216 @@
-:root {
-  color: #f5f5f5;
-  background: #1a1a1a;
-  font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color: #ede6d6;
+    background: #0f0e0c;
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  button {
+    color: inherit;
+    font: inherit;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #333028 #0f0e0c;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: #0f0e0c;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: #333028;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #444035;
+  }
 }
 
-* {
-  box-sizing: border-box;
-}
+@layer components {
+  .app-shell {
+    @apply m-0 flex h-full w-full min-h-0 min-w-0 flex-col bg-sf-bg p-0 font-ui;
+  }
 
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-}
+  .tab-bar {
+    @apply flex h-9 shrink-0 items-center border-b border-sf-b1 bg-sf-s1;
+  }
 
-button {
-  color: inherit;
-  font: inherit;
-}
+  .tab-list {
+    @apply flex h-full min-w-0 flex-1 items-stretch overflow-x-auto;
+  }
 
-.app-shell {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  background: #1a1a1a;
-}
+  .tab {
+    @apply flex h-full max-w-[220px] min-w-0 items-center bg-transparent;
+  }
 
-.tab-bar {
-  display: flex;
-  height: 34px;
-  flex: 0 0 auto;
-  align-items: center;
-  border-bottom: 1px solid #2a2a2a;
-  background: #202020;
-}
+  .tab-active {
+    @apply bg-sf-s2;
+  }
 
-.tab-list {
-  display: flex;
-  min-width: 0;
-  height: 100%;
-  flex: 1 1 auto;
-  align-items: stretch;
-  overflow-x: auto;
-}
+  .tab-select {
+    @apply h-full min-w-0 flex-1 cursor-pointer overflow-hidden border-0 bg-transparent px-4
+      text-left text-tab tracking-tab text-sf-muted;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.tab {
-  display: flex;
-  min-width: 120px;
-  max-width: 220px;
-  align-items: center;
-  border-right: 1px solid #2d2d2d;
-  background: #242424;
-}
+  .tab:not(.tab-active) .tab-select:hover {
+    @apply bg-sf-s2;
+  }
 
-.tab-active {
-  background: #1a1a1a;
-}
+  .tab-active .tab-select {
+    @apply border-b border-sf-text text-sf-text;
+  }
 
-.tab-select {
-  min-width: 0;
-  height: 100%;
-  flex: 1 1 auto;
-  overflow: hidden;
-  border: 0;
-  background: transparent;
-  color: #d8d8d8;
-  cursor: pointer;
-  padding: 0 8px 0 12px;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .tab-rename-input {
+    @apply mx-2 h-full min-w-0 flex-1 border border-sf-b1 bg-sf-bg px-2 text-tab
+      text-sf-text outline-none;
+  }
 
-.tab-rename-input {
-  min-width: 0;
-  height: calc(100% - 8px);
-  flex: 1 1 auto;
-  border: 1px solid #528bff;
-  border-radius: 4px;
-  outline: none;
-  background: #1a1a1a;
-  color: #ffffff;
-  margin: 4px 6px;
-  padding: 0 6px;
-}
+  .tab-close,
+  .tab-new {
+    @apply flex h-full w-8 shrink-0 cursor-pointer items-center justify-center border-0
+      bg-transparent text-sf-muted;
+  }
 
-.tab-active .tab-select {
-  color: #ffffff;
-}
+  .tab-close:hover,
+  .tab-new:hover {
+    @apply bg-transparent text-sf-text;
+  }
 
-.tab-close,
-.tab-new {
-  display: grid;
-  width: 32px;
-  height: 100%;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 0;
-  background: transparent;
-  color: #9a9a9a;
-  cursor: pointer;
-}
+  .workspace-stack {
+    @apply relative min-h-0 min-w-0 flex-1 bg-sf-bg;
+  }
 
-.tab-close:hover,
-.tab-new:hover {
-  background: #303030;
-  color: #ffffff;
-}
+  .workspace-view {
+    @apply absolute inset-0 hidden;
+  }
 
-.workspace-stack {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-  flex: 1 1 auto;
-  background: #1a1a1a;
-}
+  .workspace-view-active {
+    @apply block;
+  }
 
-.workspace-view {
-  position: absolute;
-  inset: 0;
-  display: none;
-}
+  .panel-split {
+    @apply flex h-full min-h-0 min-w-0 w-full flex-col;
+  }
 
-.workspace-view-active {
-  display: block;
-}
+  .panel-split-vertical {
+    @apply flex-row;
+  }
 
-.panel-split {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-}
+  .panel-branch {
+    @apply relative min-h-0 min-w-0 shrink basis-0;
+  }
 
-.panel-split-vertical {
-  flex-direction: row;
-}
+  .panel-divider {
+    position: relative;
+    flex: 0 0 8px;
+    cursor: row-resize;
+  }
 
-.panel-branch {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-  flex-basis: 0;
-  flex-shrink: 1;
-}
+  .panel-divider::after {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    left: 0;
+    height: 1px;
+    background: #333028;
+    content: "";
+    transform: translateY(-50%);
+  }
 
-.panel-divider {
-  width: 100%;
-  height: 4px;
-  flex: 0 0 4px;
-  background: #2a2a2a;
-  cursor: row-resize;
-}
+  .panel-divider:hover::after {
+    background: #444035;
+  }
 
-.panel-divider:hover {
-  background: #3a3a3a;
-}
+  .panel-divider-vertical {
+    flex: 0 0 8px;
+    cursor: col-resize;
+  }
 
-.panel-divider-vertical {
-  width: 4px;
-  height: 100%;
-  cursor: col-resize;
-}
+  .panel-divider-vertical::after {
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    height: auto;
+    transform: translateX(-50%);
+  }
 
-.terminal-pane {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  border: 1px solid transparent;
-  padding: 6px;
-  background: #1a1a1a;
-}
+  .terminal-pane {
+    @apply h-full min-h-0 min-w-0 w-full border border-transparent bg-sf-bg;
+    padding: 8px 12px;
+  }
 
-.terminal-pane-active {
-  border-color: #528bff;
-}
+  .terminal-pane-active {
+    border-color: rgba(237, 230, 214, 0.15);
+  }
 
-.xterm {
-  height: 100%;
-}
+  .xterm {
+    height: 100%;
+    font-family: "JetBrains Mono", "Fira Code", "DejaVu Sans Mono", monospace;
+  }
 
-.terminal-ghost-text {
-  position: absolute;
-  z-index: 5;
-  display: none;
-  color: #666666;
-  font-family: "'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', monospace";
-  font-size: 13px;
-  pointer-events: none;
-  white-space: pre;
-}
+  .terminal-ghost-text {
+    @apply pointer-events-none absolute z-[5] hidden whitespace-pre font-mono text-[13px]
+      text-sf-muted;
+  }
 
-.terminal-syntax-highlight {
-  position: absolute;
-  z-index: 4;
-  display: none;
-  overflow: hidden;
-  background: #1a1a1a;
-  font-family: "JetBrains Mono", "Fira Code", "DejaVu Sans Mono", monospace;
-  font-size: 13px;
-  pointer-events: none;
-  white-space: pre;
-}
+  .terminal-syntax-highlight {
+    @apply pointer-events-none absolute z-[4] hidden overflow-hidden whitespace-pre
+      bg-sf-bg font-mono text-[13px];
+  }
 
-.context-menu {
-  position: fixed;
-  z-index: 20;
-  min-width: 270px;
-  overflow: hidden;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  background: #242424;
-  box-shadow: 0 10px 24px rgb(0 0 0 / 35%);
-  padding: 4px 0;
-}
+  .context-menu {
+    @apply fixed z-20 min-w-[270px] overflow-hidden rounded border border-sf-b1 bg-sf-s2 p-0;
+    box-shadow: none;
+  }
 
-.context-menu button {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  border: 0;
-  background: transparent;
-  color: #f5f5f5;
-  cursor: pointer;
-  padding: 8px 12px;
-  text-align: left;
-}
+  .context-menu button {
+    @apply flex w-full cursor-pointer items-center justify-between gap-6 border-0
+      bg-transparent px-3 py-1.5 text-left text-menu text-sf-subtle;
+  }
 
-.context-menu-shortcut {
-  color: #9a9a9a;
-  font-size: 12px;
-  white-space: nowrap;
-}
+  .context-menu-shortcut {
+    @apply whitespace-nowrap text-menu text-sf-muted;
+  }
 
-.context-menu button:hover {
-  background: #303030;
-}
+  .context-menu button:hover {
+    @apply bg-sf-s3 text-sf-text;
+  }
 
-.context-menu-divider {
-  height: 1px;
-  margin: 4px 0;
-  background: #3a3a3a;
+  .context-menu-divider {
+    @apply my-0 h-px bg-sf-b1;
+  }
 }

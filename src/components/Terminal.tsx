@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XtermTerminal, type IDisposable } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import { isAccelShiftChord } from "../lib/accelerators";
+import { xtermTheme } from "../lib/tokens";
 import "@xterm/xterm/css/xterm.css";
 
 interface PtyOutputPayload {
@@ -243,10 +244,7 @@ function getOrCreateTerminal(id: string) {
     cursorBlink: true,
     fontFamily: "'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', monospace",
     fontSize: 13,
-    theme: {
-      background: "#1a1a1a",
-      foreground: "#f5f5f5",
-    },
+    theme: xtermTheme,
   });
   const fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);

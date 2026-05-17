@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.2] - 2026-05-17
+
+### Changed
+
+- Applied ShellForge design system across the UI: Tailwind tokens, Inter and
+  JetBrains Mono fonts, warm dark palette, thin panel dividers, and restyled
+  workspace tabs, context menu, scrollbars, and xterm theme
+
+### Removed
+
+- In-app custom title bar (ShellForge logo and window control buttons); native
+  window decorations are used instead
+
 ## [0.1.1] - 2026-05-13
 
 ### Added

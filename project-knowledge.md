@@ -37,6 +37,11 @@ the workspace and split-panel xterm.js UI.
   `~/.shellforge/history.db`.
 - Context menu items render action labels on the left and shortcut hints on the
   right using `.context-menu-shortcut`.
+- UI styling uses Tailwind 3 with tokens in `src/lib/tokens.ts` and
+  `tailwind.config.ts` (`sf-*` color utilities). Fonts: Inter (UI),
+  JetBrains Mono (terminal). Window chrome uses the native OS title bar.
+- npm commands should run under Node 20 via nvm:
+  `nvm use 20` (v20.20.2 installed at `~/.nvm`).
 
 ## Runtime Notes
 
