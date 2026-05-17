@@ -1,9 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import type { ITheme } from "@xterm/xterm";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { formatAccelShiftLetter, isAccelShiftChord } from "../lib/accelerators";
+import { sf, xtermTheme as defaultXtermTheme } from "../lib/tokens";
+import { LoginModal } from "./LoginModal";
+import { SettingsModal } from "./SettingsModal";
 import { PanelTree } from "./PanelTree";
 import { TabBar } from "./TabBar";
-import { copyTerminalSelection, disposeTerminal, pasteClipboardIntoTerminal } from "./Terminal";
+import {
+  copyTerminalSelection,
+  defaultSyntaxTheme,
+  disposeTerminal,
+  pasteClipboardIntoTerminal,
+  type SyntaxTheme,
+  type TerminalHandle,
+} from "./Terminal";
 import {
   closePanel as closePanelNode,
   collectPanelIds,
@@ -18,6 +30,29 @@ interface CreatedPty {
   id: string;
 }
 
+interface CredentialsStatus {
+  configured: boolean;
+}
+
+interface AliasState {
+  name: string;
+  command: string;
+}
+
+interface CommandState {
+  name: string;
+  script: string;
+  description: string;
+}
+
+interface InitialProfile {
+  active_theme: unknown;
+  aliases: Array<{ command: string; id: string; name: string }>;
+  commands: Array<{ description: string; id: string; name: string; script: string }>;
+}
+
+type JsonObject = Record<string, unknown>;
+
 interface ContextMenuState {
   panelId: string;
   x: number;
@@ -29,9 +64,162 @@ export function App() {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [credentialsChecked, setCredentialsChecked] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [activeAliases, setActiveAliases] = useState<Map<string, AliasState>>(new Map());
+  const [activeCommands, setActiveCommands] = useState<Map<string, CommandState>>(new Map());
+  const [activeXtermTheme, setActiveXtermTheme] = useState<ITheme>({ ...defaultXtermTheme });
+  const [activeSyntaxTheme, setActiveSyntaxTheme] =
+    useState<SyntaxTheme>(defaultSyntaxTheme);
   const nextWorkspaceNumber = useRef(1);
+  const terminalRefs = useRef(new Map<string, RefObject<TerminalHandle | null>>());
 
   const createPty = useCallback(() => invoke<CreatedPty>("create_pty"), []);
+
+  const registerTerminal = useCallback(
+    (panelId: string, ref: RefObject<TerminalHandle | null>) => {
+      terminalRefs.current.set(panelId, ref);
+    },
+    [],
+  );
+
+  const unregisterTerminal = useCallback((panelId: string) => {
+    terminalRefs.current.delete(panelId);
+  }, []);
+
+  const applyThemeToAllTerminals = useCallback((theme: ITheme, syntaxTheme: SyntaxTheme) => {
+    setActiveXtermTheme(theme);
+    setActiveSyntaxTheme(syntaxTheme);
+
+    for (const terminalRef of terminalRefs.current.values()) {
+      terminalRef.current?.applyTheme(theme);
+      terminalRef.current?.applySyntaxTheme(syntaxTheme);
+    }
+  }, []);
+
+  const rebuildBashInit = useCallback(
+    (aliases: Map<string, AliasState>, commands: Map<string, CommandState>) => {
+      void invoke("rebuild_bash_init", {
+        aliases: Array.from(aliases.values()),
+        commands: Array.from(commands.values()).map(({ name, script }) => ({
+          name,
+          script,
+        })),
+      }).catch((error) => console.error("failed to rebuild bash init", error));
+    },
+    [],
+  );
+
+  const applyThemeFromPayload = useCallback(
+    (payload: JsonObject) => {
+      if (payload.is_active !== true) {
+        return;
+      }
+
+      const colors = asObject(payload.colors);
+      const background = stringOr(colors?.bg, defaultXtermTheme.background ?? sf.colors.bg);
+      const foreground = stringOr(colors?.fg, defaultXtermTheme.foreground ?? sf.colors.text);
+
+      const theme: ITheme = {
+        background,
+        foreground,
+        cursor: foreground,
+        cursorAccent: background,
+        selectionBackground: sf.colors.b1,
+      };
+
+      const syntaxTheme: SyntaxTheme = {
+        ...defaultSyntaxTheme,
+        argument: foreground,
+        command: stringOr(colors?.accent, defaultSyntaxTheme.command),
+      };
+
+      applyThemeToAllTerminals(theme, syntaxTheme);
+    },
+    [applyThemeToAllTerminals],
+  );
+
+  const handleSocketMessage = useCallback(
+    (message: unknown) => {
+      const envelope = asObject(message);
+      if (!envelope) {
+        return;
+      }
+
+      const type = typeof envelope.type === "string" ? envelope.type : "";
+      const payload = asObject(envelope.payload) ?? envelope;
+
+      switch (type) {
+        case "theme.updated":
+          applyThemeFromPayload(payload);
+          break;
+        case "alias.updated": {
+          const id = stringOr(payload.id);
+          if (!id) {
+            break;
+          }
+
+          setActiveAliases((current) => {
+            const next = new Map(current);
+            next.set(id, {
+              name: stringOr(payload.name),
+              command: stringOr(payload.command),
+            });
+            return next;
+          });
+          break;
+        }
+        case "alias.deleted": {
+          const id = stringOr(payload.id);
+          if (!id) {
+            break;
+          }
+
+          setActiveAliases((current) => {
+            const next = new Map(current);
+            next.delete(id);
+            return next;
+          });
+          break;
+        }
+        case "command.updated": {
+          const id = stringOr(payload.id);
+          if (!id) {
+            break;
+          }
+
+          setActiveCommands((current) => {
+            const next = new Map(current);
+            next.set(id, {
+              name: stringOr(payload.name),
+              script: stringOr(payload.script),
+              description: stringOr(payload.description),
+            });
+            return next;
+          });
+          break;
+        }
+        case "command.deleted": {
+          const id = stringOr(payload.id);
+          if (!id) {
+            break;
+          }
+
+          setActiveCommands((current) => {
+            const next = new Map(current);
+            next.delete(id);
+            return next;
+          });
+          break;
+        }
+        default:
+          break;
+      }
+    },
+    [applyThemeFromPayload],
+  );
 
   const createWorkspace = useCallback(() => {
     void createPty()
@@ -243,9 +431,92 @@ export function App() {
     setContextMenu({ panelId, x, y });
   }, []);
 
+  const openSettings = useCallback(() => {
+    setContextMenu(null);
+    setShowSettingsModal(true);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    setShowSettingsModal(false);
+    setShowLoginModal(true);
+  }, []);
+
   useEffect(() => {
+    void invoke<CredentialsStatus>("check_credentials")
+      .then((status) => {
+        if (!status.configured) {
+          setShowLoginModal(true);
+        }
+      })
+      .catch((error) => {
+        console.error("failed to check credentials", error);
+        setShowLoginModal(true);
+      })
+      .finally(() => {
+        setCredentialsChecked(true);
+      });
+  }, []);
+
+  useEffect(() => {
+    void invoke<InitialProfile>("load_initial_profile")
+      .then((profile) => {
+        const aliases = new Map(
+          profile.aliases.map((alias) => [
+            alias.id,
+            { name: alias.name, command: alias.command },
+          ]),
+        );
+        const commands = new Map(
+          profile.commands.map((command) => [
+            command.id,
+            {
+              name: command.name,
+              script: command.script,
+              description: command.description ?? "",
+            },
+          ]),
+        );
+
+        setActiveAliases(aliases);
+        setActiveCommands(commands);
+
+        if (profile.active_theme) {
+          applyThemeFromPayload(asObject(profile.active_theme) ?? {});
+        }
+      })
+      .catch((error) => {
+        console.error("failed to load initial profile", error);
+      })
+      .finally(() => {
+        setProfileLoaded(true);
+      });
+  }, [applyThemeFromPayload, rebuildBashInit]);
+
+  useEffect(() => {
+    if (!profileLoaded) {
+      return;
+    }
+
+    rebuildBashInit(activeAliases, activeCommands);
+  }, [activeAliases, activeCommands, profileLoaded, rebuildBashInit]);
+
+  useEffect(() => {
+    if (!credentialsChecked || !profileLoaded) {
+      return;
+    }
+
     createWorkspace();
-  }, [createWorkspace]);
+  }, [createWorkspace, credentialsChecked, profileLoaded]);
+
+  useEffect(() => {
+    const unlisten = listen<unknown>("socket_message", (event) => {
+      handleSocketMessage(event.payload);
+    });
+
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
+  }, [handleSocketMessage]);
 
   useEffect(() => {
     const closeMenu = () => setContextMenu(null);
@@ -271,6 +542,9 @@ export function App() {
       } else if (isAccelShiftChord(event) && chordKey === "q") {
         event.preventDefault();
         closeWorkspace();
+      } else if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === ",") {
+        event.preventDefault();
+        openSettings();
       } else if (event.altKey && event.key.startsWith("Arrow")) {
         event.preventDefault();
         focusPanelByDirection(event.key);
@@ -285,6 +559,7 @@ export function App() {
     closeWorkspace,
     createWorkspace,
     focusPanelByDirection,
+    openSettings,
     splitPanelById,
   ]);
 
@@ -294,6 +569,7 @@ export function App() {
         activeId={activeWorkspaceId}
         onClose={closeWorkspace}
         onCreate={createWorkspace}
+        onOpenSettings={openSettings}
         onRename={renameWorkspace}
         onSelect={(workspaceId) => {
           const workspace = workspaces.find((item) => item.id === workspaceId);
@@ -317,12 +593,20 @@ export function App() {
               node={workspace.root}
               onContextMenu={openContextMenu}
               onFocusPanel={focusPanel}
+              onRegisterTerminal={registerTerminal}
               onResizeSplit={resizeSplit}
               onTitleChange={ignoreTerminalTitle}
+              onUnregisterTerminal={unregisterTerminal}
+              syntaxTheme={activeSyntaxTheme}
+              xtermTheme={activeXtermTheme}
             />
           </div>
         ))}
       </section>
+      {showLoginModal ? <LoginModal onClose={() => setShowLoginModal(false)} /> : null}
+      {showSettingsModal ? (
+        <SettingsModal onClose={() => setShowSettingsModal(false)} onLogout={handleLogout} />
+      ) : null}
       {contextMenu ? (
         <div className="context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
           <button type="button" onClick={() => copyTerminalSelection(contextMenu.panelId)}>
@@ -332,6 +616,10 @@ export function App() {
           <button type="button" onClick={() => pasteClipboardIntoTerminal(contextMenu.panelId)}>
             <span>Paste</span>
             <span className="context-menu-shortcut">{formatAccelShiftLetter("V")}</span>
+          </button>
+          <div className="context-menu-divider" />
+          <button type="button" onClick={openSettings}>
+            <span>Settings</span>
           </button>
           <div className="context-menu-divider" />
           <button type="button" onClick={() => splitPanelById(contextMenu.panelId, "vertical")}>
@@ -359,6 +647,18 @@ export function App() {
       ) : null}
     </main>
   );
+}
+
+function asObject(value: unknown): JsonObject | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as JsonObject;
+}
+
+function stringOr(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
 }
 
 function centerOf(rect: DOMRect) {

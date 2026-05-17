@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.4] - 2026-05-17
+
+### Added
+
+- Settings modal (Account, Sync) opened from the tab-bar gear button, panel
+  context menu, or **Ctrl+,**; Tauri commands `get_account_info`, `logout`,
+  `get_sync_settings`, and `update_sync_setting`
+
+### Changed
+
+- Account settings now loads user data from `GET /v1/user/me` (display name,
+  member since)
+- `shellforge-daemon` sidecar binary (`src-daemon/`) for token refresh, WebSocket
+  relay to `/tmp/shellforge.sock`, and batched history sync to the ShellForge API
+- First-run login modal with `check_credentials` and `save_credentials` Tauri
+  commands; credentials stored in `~/.shellforge/daemon.json`
+- `synced` column on the local history table for daemon upload tracking
+
 ## [0.1.3] - 2026-05-17
 
 ### Changed

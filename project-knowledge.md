@@ -8,6 +8,22 @@ the workspace and split-panel xterm.js UI.
 
 ## Structure
 
+- `src-daemon/` is a **separate** Rust crate (not in the Tauri workspace) for
+  `shellforge-daemon`: refresh tokens, WebSocket → Unix socket relay, history
+  upload. Build with `cargo build --release` inside `src-daemon/`. For packaged
+  runs, place the binary next to the `shellforge` executable (Tauri spawns it
+  from `current_exe().parent()/shellforge-daemon`; missing binary is skipped in
+  dev).
+- `~/.shellforge/daemon.json` stores API URL and auth/device tokens after login.
+- `src-tauri/src/credentials.rs` implements `check_credentials` and
+  `save_credentials` (login + device registration).
+- `src-tauri/src/settings.rs` implements settings API commands: account profile
+  (`GET /v1/user/me`), sync toggles (`PATCH /v1/profile/sync`), and `logout`
+  (deletes `daemon.json`).
+- `src/components/SettingsModal.tsx` is the settings UI; `App.tsx` wires
+  `openSettings` from tab bar, context menu, and **Ctrl+,**. Logout closes settings
+  and reopens `LoginModal`.
+- `src-tauri/src/daemon.rs` spawns and kills the daemon child on app exit.
 - `src-tauri/src/pty.rs` owns PTY session creation, resizing, input writes, and
   output emission through Tauri events.
 - `src-tauri/src/socket.rs` owns the Unix socket listener at
@@ -34,7 +50,7 @@ the workspace and split-panel xterm.js UI.
   uses **Alt+Arrow** (Option+Arrow on macOS). Shell interrupt stays **Ctrl+C**
   (see `Terminal.tsx` `isInputAbort`).
 - `src-tauri/src/history.rs` owns the SQLite command history database at
-  `~/.shellforge/history.db`.
+  `~/.shellforge/history.db`. Table includes `synced` (0 = pending upload).
 - Context menu items render action labels on the left and shortcut hints on the
   right using `.context-menu-shortcut`.
 - UI styling uses Tailwind 3 with tokens in `src/lib/tokens.ts` and
@@ -42,6 +58,8 @@ the workspace and split-panel xterm.js UI.
   JetBrains Mono (terminal). Window chrome uses the native OS title bar.
 - npm commands should run under Node 20 via nvm:
   `nvm use 20` (v20.20.2 installed at `~/.nvm`).
+- `./start_dev.sh` (or `npm run start:dev`) builds `shellforge-daemon`, copies it
+  to `src-tauri/target/debug/`, then runs `tauri dev`.
 
 ## Runtime Notes
 
@@ -115,6 +133,10 @@ the workspace and split-panel xterm.js UI.
 
 ## Current Caveats
 
+- Release CI does not yet build or bundle `shellforge-daemon`; copy it manually
+  beside the app binary until packaging is wired up.
+- Socket messages from the daemon are forwarded as raw JSON to
+  `/tmp/shellforge.sock`; the in-app listener still only logs them.
 - Socket messages are intentionally logged and not handled.
 - Clipboard PRIMARY support depends on installed Linux clipboard tools and the
   active display server.

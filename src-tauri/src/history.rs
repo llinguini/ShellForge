@@ -25,7 +25,8 @@ impl HistoryStore {
                   command TEXT NOT NULL,
                   cwd TEXT NOT NULL,
                   exit_code INTEGER,
-                  ran_at INTEGER NOT NULL
+                  ran_at TEXT NOT NULL,
+                  synced INTEGER NOT NULL DEFAULT 0
                 );
 
                 CREATE UNIQUE INDEX IF NOT EXISTS history_command_unique
@@ -33,6 +34,11 @@ impl HistoryStore {
                 "#,
             )
             .map_err(|error| format!("failed to initialize history database: {error}"))?;
+
+        let _ = connection.execute(
+            "ALTER TABLE history ADD COLUMN synced INTEGER NOT NULL DEFAULT 0",
+            [],
+        );
 
         Ok(Self {
             connection: Mutex::new(connection),
@@ -63,14 +69,16 @@ impl HistoryStore {
             return Ok(());
         }
 
+        let ran_at = chrono::Utc::now().to_rfc3339();
+
         connection
             .execute(
                 r#"
                 INSERT INTO history (command, cwd, exit_code, ran_at)
-                VALUES (?1, ?2, ?3, strftime('%s','now'))
+                VALUES (?1, ?2, ?3, ?4)
                 ON CONFLICT DO NOTHING
                 "#,
-                params![command, cwd, exit_code],
+                params![command, cwd, exit_code, &ran_at],
             )
             .map_err(|error| format!("failed to insert history entry: {error}"))?;
 
@@ -78,10 +86,10 @@ impl HistoryStore {
             .execute(
                 r#"
                 UPDATE history
-                SET ran_at = strftime('%s','now'), cwd = ?2, exit_code = ?3
+                SET ran_at = ?4, cwd = ?2, exit_code = ?3
                 WHERE command = ?1
                 "#,
-                params![command, cwd, exit_code],
+                params![command, cwd, exit_code, &ran_at],
             )
             .map_err(|error| format!("failed to update history entry: {error}"))?;
 

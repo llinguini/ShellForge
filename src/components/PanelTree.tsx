@@ -1,5 +1,11 @@
-import { type MouseEvent as ReactMouseEvent, useRef } from "react";
-import { Terminal } from "./Terminal";
+import {
+  type MouseEvent as ReactMouseEvent,
+  type RefObject,
+  useEffect,
+  useRef,
+} from "react";
+import type { ITheme } from "@xterm/xterm";
+import { Terminal, type SyntaxTheme, type TerminalHandle } from "./Terminal";
 import { clampSplitRatio, type PanelNode } from "./workspaceTree";
 
 interface PanelTreeProps {
@@ -7,9 +13,47 @@ interface PanelTreeProps {
   node: PanelNode;
   onContextMenu: (panelId: string, x: number, y: number) => void;
   onFocusPanel: (panelId: string) => void;
+  onRegisterTerminal: (panelId: string, ref: RefObject<TerminalHandle | null>) => void;
   onResizeSplit: (path: string, ratio: number) => void;
   onTitleChange: (panelId: string, title: string) => void;
+  onUnregisterTerminal: (panelId: string) => void;
+  syntaxTheme: SyntaxTheme;
+  xtermTheme: ITheme;
   path?: string;
+}
+
+function PanelLeaf({
+  activePanelId,
+  node,
+  onContextMenu,
+  onFocusPanel,
+  onRegisterTerminal,
+  onTitleChange,
+  onUnregisterTerminal,
+  syntaxTheme,
+  xtermTheme,
+}: Omit<PanelTreeProps, "node" | "path" | "onResizeSplit"> & { node: Extract<PanelNode, { kind: "leaf" }> }) {
+  const terminalRef = useRef<TerminalHandle>(null);
+
+  useEffect(() => {
+    onRegisterTerminal(node.id, terminalRef);
+    return () => {
+      onUnregisterTerminal(node.id);
+    };
+  }, [node.id, onRegisterTerminal, onUnregisterTerminal]);
+
+  return (
+    <Terminal
+      active={node.id === activePanelId}
+      id={node.id}
+      onContextMenu={onContextMenu}
+      onFocus={onFocusPanel}
+      onTitleChange={onTitleChange}
+      ref={terminalRef}
+      syntaxTheme={syntaxTheme}
+      xtermTheme={xtermTheme}
+    />
+  );
 }
 
 export function PanelTree({
@@ -17,20 +61,28 @@ export function PanelTree({
   node,
   onContextMenu,
   onFocusPanel,
+  onRegisterTerminal,
   onResizeSplit,
   onTitleChange,
+  onUnregisterTerminal,
+  syntaxTheme,
+  xtermTheme,
   path = "",
 }: PanelTreeProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   if (node.kind === "leaf") {
     return (
-      <Terminal
-        active={node.id === activePanelId}
-        id={node.id}
+      <PanelLeaf
+        activePanelId={activePanelId}
+        node={node}
         onContextMenu={onContextMenu}
-        onFocus={onFocusPanel}
+        onFocusPanel={onFocusPanel}
+        onRegisterTerminal={onRegisterTerminal}
         onTitleChange={onTitleChange}
+        onUnregisterTerminal={onUnregisterTerminal}
+        syntaxTheme={syntaxTheme}
+        xtermTheme={xtermTheme}
       />
     );
   }
@@ -83,8 +135,12 @@ export function PanelTree({
           node={node.first}
           onContextMenu={onContextMenu}
           onFocusPanel={onFocusPanel}
+          onRegisterTerminal={onRegisterTerminal}
           onResizeSplit={onResizeSplit}
           onTitleChange={onTitleChange}
+          onUnregisterTerminal={onUnregisterTerminal}
+          syntaxTheme={syntaxTheme}
+          xtermTheme={xtermTheme}
           path={firstPath}
         />
       </div>
@@ -99,8 +155,12 @@ export function PanelTree({
           node={node.second}
           onContextMenu={onContextMenu}
           onFocusPanel={onFocusPanel}
+          onRegisterTerminal={onRegisterTerminal}
           onResizeSplit={onResizeSplit}
           onTitleChange={onTitleChange}
+          onUnregisterTerminal={onUnregisterTerminal}
+          syntaxTheme={syntaxTheme}
+          xtermTheme={xtermTheme}
           path={secondPath}
         />
       </div>

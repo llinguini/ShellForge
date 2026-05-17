@@ -1,8 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
-import { Terminal as XtermTerminal, type IDisposable } from "@xterm/xterm";
-import { useEffect, useRef } from "react";
+import {
+  Terminal as XtermTerminal,
+  type IDisposable,
+  type ITheme,
+} from "@xterm/xterm";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { isAccelShiftChord } from "../lib/accelerators";
 import { xtermTheme } from "../lib/tokens";
 import "@xterm/xterm/css/xterm.css";
@@ -16,6 +20,8 @@ type ClipboardSource = "clipboard" | "primary";
 const HISTORY_OSC_PREFIX = "\x1b]777;ShellForgeHistory;";
 const OSC_TERMINATOR = "\x07";
 const HISTORY_SUGGESTION_LIMIT = 50;
+const ECHO_CHECK_DELAY_MS = 16;
+const PROMPT_CURSOR_X_MAX = 2;
 const MULTI_WORD_COMMANDS = new Set([
   "apt",
   "cargo",
@@ -50,17 +56,27 @@ interface SyntaxToken {
   type: SyntaxTokenType;
 }
 
+export interface TerminalHandle {
+  applyTheme: (theme: ITheme) => void;
+  applySyntaxTheme: (theme: SyntaxTheme) => void;
+}
+
 interface TerminalProps {
   active: boolean;
   id: string;
   onContextMenu: (id: string, x: number, y: number) => void;
   onFocus: (id: string) => void;
   onTitleChange: (id: string, title: string) => void;
+  syntaxTheme?: SyntaxTheme;
+  xtermTheme?: ITheme;
 }
 
 interface CachedTerminal {
   clipboardSyncTimer: number | null;
   dataDisposable: IDisposable;
+  echoCheckTimer: number | null;
+  echoCursorBefore: number | null;
+  echoDisabled: boolean;
   fitAddon: FitAddon;
   ghostElement: HTMLSpanElement | null;
   historyCwd: string;
@@ -75,7 +91,9 @@ interface CachedTerminal {
   suggestionListCwd: string;
   suggestionListPrefix: string;
   syntaxElement: HTMLDivElement | null;
+  syntaxTheme: SyntaxTheme;
   terminal: XtermTerminal;
+  xtermTheme: ITheme;
   titleDisposable: IDisposable;
   unlistenPromise: Promise<() => void>;
 }
@@ -105,6 +123,9 @@ export function disposeTerminal(id: string) {
   if (cached.clipboardSyncTimer !== null) {
     window.clearTimeout(cached.clipboardSyncTimer);
   }
+  if (cached.echoCheckTimer !== null) {
+    window.clearTimeout(cached.echoCheckTimer);
+  }
   cached.ghostElement?.remove();
   cached.syntaxElement?.remove();
   cached.terminal.dispose();
@@ -123,16 +144,68 @@ export function pasteClipboardIntoTerminal(id: string) {
   void pasteFromClipboard(id, "clipboard");
 }
 
-export function Terminal({
-  active,
-  id,
-  onContextMenu,
-  onFocus,
-  onTitleChange,
-}: TerminalProps) {
+export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Terminal(
+  {
+    active,
+    id,
+    onContextMenu,
+    onFocus,
+    onTitleChange,
+    syntaxTheme = defaultSyntaxTheme,
+    xtermTheme: xtermThemeProp = xtermTheme,
+  },
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const terminalRef = useRef<XtermTerminal | null>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      applyTheme(theme: ITheme) {
+        const cached = terminalCache.get(id);
+        if (!cached) {
+          return;
+        }
+
+        cached.xtermTheme = theme;
+        cached.terminal.options.theme = { ...theme };
+        cached.terminal.refresh(0, Math.max(0, cached.terminal.rows - 1));
+      },
+      applySyntaxTheme(theme: SyntaxTheme) {
+        const cached = terminalCache.get(id);
+        if (!cached) {
+          return;
+        }
+
+        cached.syntaxTheme = theme;
+        updateInputOverlays(cached);
+      },
+    }),
+    [id],
+  );
+
+  useEffect(() => {
+    const cached = terminalCache.get(id);
+    if (!cached) {
+      return;
+    }
+
+    cached.xtermTheme = xtermThemeProp;
+    cached.terminal.options.theme = { ...xtermThemeProp };
+    cached.terminal.refresh(0, Math.max(0, cached.terminal.rows - 1));
+  }, [id, xtermThemeProp]);
+
+  useEffect(() => {
+    const cached = terminalCache.get(id);
+    if (!cached) {
+      return;
+    }
+
+    cached.syntaxTheme = syntaxTheme;
+    updateInputOverlays(cached);
+  }, [id, syntaxTheme]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -140,7 +213,7 @@ export function Terminal({
       return undefined;
     }
 
-    const cached = getOrCreateTerminal(id);
+    const cached = getOrCreateTerminal(id, xtermThemeProp, syntaxTheme);
     cached.onTitleChange = onTitleChange;
 
     attachTerminalElement(cached.terminal, container);
@@ -182,7 +255,7 @@ export function Terminal({
       resizeObserver.disconnect();
       window.removeEventListener("resize", onWindowResize);
     };
-  }, [id, onTitleChange]);
+  }, [id, onTitleChange, syntaxTheme, xtermThemeProp]);
 
   useEffect(() => {
     if (active) {
@@ -230,9 +303,9 @@ export function Terminal({
       ref={containerRef}
     />
   );
-}
+});
 
-function getOrCreateTerminal(id: string) {
+function getOrCreateTerminal(id: string, theme: ITheme, syntaxTheme: SyntaxTheme) {
   const cached = terminalCache.get(id);
   if (cached) {
     return cached;
@@ -244,7 +317,7 @@ function getOrCreateTerminal(id: string) {
     cursorBlink: true,
     fontFamily: "'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', monospace",
     fontSize: 13,
-    theme: xtermTheme,
+    theme: { ...theme },
   });
   const fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
@@ -276,7 +349,10 @@ function getOrCreateTerminal(id: string) {
     if (event.payload.id === id) {
       const output = processPtyOutput(entry, event.payload.data);
       if (output) {
-        terminal.write(output, () => updateInputOverlays(entry));
+        terminal.write(output, () => {
+          maybeResetEchoOnPrompt(entry);
+          updateInputOverlays(entry);
+        });
       }
     }
   });
@@ -284,6 +360,9 @@ function getOrCreateTerminal(id: string) {
   entry = {
     clipboardSyncTimer: null,
     dataDisposable,
+    echoCheckTimer: null,
+    echoCursorBefore: null,
+    echoDisabled: false,
     fitAddon,
     ghostElement: null,
     historyCwd: "",
@@ -298,13 +377,24 @@ function getOrCreateTerminal(id: string) {
     suggestionListCwd: "",
     suggestionListPrefix: "",
     syntaxElement: null,
+    syntaxTheme,
     terminal,
     titleDisposable,
     unlistenPromise,
+    xtermTheme: theme,
   };
 
   terminal.attachCustomKeyEventHandler((event) => {
     if (event.type !== "keydown") {
+      return true;
+    }
+
+    if (entry.echoDisabled) {
+      if (event.key === "Enter") {
+        entry.echoDisabled = false;
+        resetInputBuffer(entry);
+      }
+
       return true;
     }
 
@@ -360,6 +450,7 @@ function getOrCreateTerminal(id: string) {
     }
 
     if (event.key === "Enter") {
+      entry.echoDisabled = false;
       resetInputBuffer(entry);
       return true;
     }
@@ -370,7 +461,7 @@ function getOrCreateTerminal(id: string) {
     }
 
     if (event.key.length === 1 && isPlainInputKey(event)) {
-      appendInputCharacter(entry, event.key);
+      entry.echoCursorBefore = getCursorX(terminal);
       return true;
     }
 
@@ -392,18 +483,14 @@ function attachTerminalElement(terminal: XtermTerminal, container: HTMLElement) 
 
 function handleTerminalInput(cached: CachedTerminal, data: string) {
   if (data === "\r") {
+    cached.echoDisabled = false;
     resetInputBuffer(cached);
     return;
   }
 
   if (data === "\x03" || data === "\x04") {
+    cached.echoDisabled = false;
     resetInputBuffer(cached);
-    return;
-  }
-
-  const characters = [...data];
-  if (characters.length > 1 && characters.every(isPrintableCharacter)) {
-    appendInputCharacter(cached, data);
     return;
   }
 
@@ -412,9 +499,82 @@ function handleTerminalInput(cached: CachedTerminal, data: string) {
     clearSuggestion(cached);
     return;
   }
+
+  if (cached.echoDisabled) {
+    return;
+  }
+
+  const characters = [...data];
+  if (characters.every(isPrintableCharacter)) {
+    scheduleEchoCheck(cached, data);
+  }
+}
+
+function getCursorX(terminal: XtermTerminal) {
+  return terminal.buffer.active.cursorX;
+}
+
+function scheduleEchoCheck(cached: CachedTerminal, data: string) {
+  if (cached.echoCheckTimer !== null) {
+    window.clearTimeout(cached.echoCheckTimer);
+  }
+
+  const cursorBefore =
+    cached.echoCursorBefore
+    ?? Math.max(0, getCursorX(cached.terminal) - inputCellLength(data));
+  cached.echoCursorBefore = null;
+  cached.echoCheckTimer = window.setTimeout(() => {
+    cached.echoCheckTimer = null;
+    const cursorAfter = getCursorX(cached.terminal);
+
+    if (cursorAfter > cursorBefore) {
+      if (cached.echoDisabled) {
+        cached.echoDisabled = false;
+      }
+      appendInputCharacter(cached, data);
+      return;
+    }
+
+    setEchoDisabled(cached);
+  }, ECHO_CHECK_DELAY_MS);
+}
+
+function setEchoDisabled(cached: CachedTerminal) {
+  cached.echoDisabled = true;
+  cached.inputBuffer = "";
+  resetSuggestionNavigation(cached);
+  clearSuggestion(cached);
+  hideInputOverlays(cached);
+}
+
+function maybeResetEchoOnPrompt(cached: CachedTerminal) {
+  if (!cached.echoDisabled) {
+    return;
+  }
+
+  if (getCursorX(cached.terminal) <= PROMPT_CURSOR_X_MAX) {
+    cached.echoDisabled = false;
+    resetInputBuffer(cached);
+  }
+}
+
+function hideInputOverlays(cached: CachedTerminal) {
+  if (cached.syntaxElement) {
+    cached.syntaxElement.replaceChildren();
+    cached.syntaxElement.style.display = "none";
+  }
+
+  if (cached.ghostElement) {
+    cached.ghostElement.textContent = "";
+    cached.ghostElement.style.display = "none";
+  }
 }
 
 function appendInputCharacter(cached: CachedTerminal, character: string) {
+  if (cached.echoDisabled) {
+    return;
+  }
+
   cached.inputBuffer += character;
   resetSuggestionNavigation(cached);
   updateSyntaxOverlay(cached);
@@ -422,7 +582,7 @@ function appendInputCharacter(cached: CachedTerminal, character: string) {
 }
 
 function removeLastInputCharacter(cached: CachedTerminal) {
-  if (!cached.inputBuffer) {
+  if (cached.echoDisabled || !cached.inputBuffer) {
     return;
   }
 
@@ -457,6 +617,10 @@ function isPrintableCharacter(character: string) {
 }
 
 async function requestHistorySuggestion(cached: CachedTerminal) {
+  if (cached.echoDisabled) {
+    return;
+  }
+
   const prefix = cached.inputBuffer;
   const requestId = cached.historyRequestId + 1;
   cached.historyRequestId = requestId;
@@ -486,6 +650,10 @@ async function requestHistorySuggestion(cached: CachedTerminal) {
 }
 
 async function moveHistorySuggestion(cached: CachedTerminal, direction: "older" | "newer") {
+  if (cached.echoDisabled) {
+    return;
+  }
+
   const prefix = cached.inputBuffer;
   if (!prefix) {
     return;
@@ -700,6 +868,11 @@ function updateSyntaxOverlay(cached?: CachedTerminal) {
     return;
   }
 
+  if (cached.echoDisabled) {
+    hideInputOverlays(cached);
+    return;
+  }
+
   if (!cached.inputBuffer) {
     cached.syntaxElement.replaceChildren();
     cached.syntaxElement.style.display = "none";
@@ -726,7 +899,9 @@ function updateSyntaxOverlay(cached?: CachedTerminal) {
   const left = screenRect.left - parentRect.left + position.column * metrics.width;
   const top = screenRect.top - parentRect.top + position.row * metrics.height;
 
-  cached.syntaxElement.replaceChildren(...syntaxTokenElements(cached.inputBuffer));
+  cached.syntaxElement.replaceChildren(
+    ...syntaxTokenElements(cached.inputBuffer, cached.syntaxTheme),
+  );
   cached.syntaxElement.style.display = "block";
   cached.syntaxElement.style.left = `${left}px`;
   cached.syntaxElement.style.lineHeight = `${metrics.height}px`;
@@ -738,6 +913,11 @@ function updateSyntaxOverlay(cached?: CachedTerminal) {
 
 function updateGhostOverlay(cached?: CachedTerminal) {
   if (!cached?.ghostElement) {
+    return;
+  }
+
+  if (cached.echoDisabled) {
+    hideInputOverlays(cached);
     return;
   }
 
@@ -811,11 +991,11 @@ function inputCellLength(value: string) {
   return [...value].length;
 }
 
-function syntaxTokenElements(input: string) {
+function syntaxTokenElements(input: string, syntaxTheme: SyntaxTheme) {
   return tokenizeSyntax(input).map((token) => {
     const element = document.createElement("span");
     element.textContent = token.text;
-    element.style.color = defaultSyntaxTheme[token.type];
+    element.style.color = syntaxTheme[token.type];
     return element;
   });
 }

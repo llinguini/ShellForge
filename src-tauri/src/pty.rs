@@ -1,5 +1,5 @@
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
@@ -11,6 +11,7 @@ use uuid::Uuid;
 const DEFAULT_ROWS: u16 = 24;
 const DEFAULT_COLS: u16 = 80;
 const BASH_INIT_PATH: &str = "/tmp/shellforge_bash_init.sh";
+const SF_RELOAD_PATH: &str = "/tmp/.sf_reload.sh";
 
 #[derive(Clone, Serialize)]
 struct PtyOutput {
@@ -24,6 +25,24 @@ pub struct PtyCreated {
     title: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct AliasEntry {
+    pub name: String,
+    pub command: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct CommandEntry {
+    pub name: String,
+    pub script: String,
+}
+
+#[derive(Debug, Clone, Default)]
+struct BashInitState {
+    aliases: Vec<AliasEntry>,
+    commands: Vec<CommandEntry>,
+}
+
 struct PtySession {
     child: Box<dyn Child + Send + Sync>,
     master: Box<dyn MasterPty + Send>,
@@ -32,17 +51,23 @@ struct PtySession {
 
 pub struct PtyManager {
     sessions: Mutex<HashMap<String, PtySession>>,
+    bash_init: Mutex<BashInitState>,
 }
 
 impl PtyManager {
     pub fn new() -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
+            bash_init: Mutex::new(BashInitState::default()),
         }
     }
 
     pub fn create(&self, app: AppHandle) -> Result<PtyCreated, String> {
-        write_bash_init_file()?;
+        let bash_init = self
+            .bash_init
+            .lock()
+            .map_err(|_| "bash init state is poisoned".to_string())?;
+        write_bash_init_file(&bash_init.aliases, &bash_init.commands)?;
 
         let id = Uuid::new_v4().to_string();
         let size = PtySize {
@@ -107,15 +132,7 @@ impl PtyManager {
             .get_mut(id)
             .ok_or_else(|| format!("unknown PTY session: {id}"))?;
 
-        session
-            .writer
-            .write_all(data.as_bytes())
-            .map_err(|error| format!("failed to write to PTY: {error}"))?;
-
-        session
-            .writer
-            .flush()
-            .map_err(|error| format!("failed to flush PTY writer: {error}"))
+        write_to_pty_writer(&mut session.writer, data)
     }
 
     pub fn resize(&self, id: &str, cols: u16, rows: u16) -> Result<(), String> {
@@ -154,6 +171,43 @@ impl PtyManager {
 
         Ok(())
     }
+
+    pub fn rebuild_bash_init(
+        &self,
+        aliases: Vec<AliasEntry>,
+        commands: Vec<CommandEntry>,
+    ) -> Result<(), String> {
+        let reload_script = {
+            let mut bash_init = self
+                .bash_init
+                .lock()
+                .map_err(|_| "bash init state is poisoned".to_string())?;
+            bash_init.aliases = aliases;
+            bash_init.commands = commands;
+            write_bash_init_file(&bash_init.aliases, &bash_init.commands)?;
+            prepare_pty_reload_injection(&bash_init.aliases, &bash_init.commands)?
+        };
+
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| "PTY session store is poisoned".to_string())?;
+
+        for session in sessions.values_mut() {
+            write_to_pty_writer(&mut session.writer, &reload_script)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[tauri::command]
+pub fn rebuild_bash_init(
+    manager: tauri::State<'_, PtyManager>,
+    aliases: Vec<AliasEntry>,
+    commands: Vec<CommandEntry>,
+) -> Result<(), String> {
+    manager.rebuild_bash_init(aliases, commands)
 }
 
 fn spawn_reader(id: String, mut reader: Box<dyn Read + Send>, app: AppHandle) {
@@ -192,13 +246,65 @@ fn bash_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("bash"))
 }
 
-fn write_bash_init_file() -> Result<(), String> {
-    fs::write(BASH_INIT_PATH, bash_init_contents())
+fn write_to_pty_writer(writer: &mut dyn Write, data: &str) -> Result<(), String> {
+    writer
+        .write_all(data.as_bytes())
+        .map_err(|error| format!("failed to write to PTY: {error}"))?;
+    writer
+        .flush()
+        .map_err(|error| format!("failed to flush PTY writer: {error}"))
+}
+
+fn prepare_pty_reload_injection(
+    aliases: &[AliasEntry],
+    commands: &[CommandEntry],
+) -> Result<String, String> {
+    fs::write(SF_RELOAD_PATH, format_aliases_and_commands(aliases, commands))
+        .map_err(|error| format!("failed to write ShellForge reload script: {error}"))?;
+
+    Ok(format!("\x15source {}\n\x15clear\n", SF_RELOAD_PATH))
+}
+
+fn format_aliases_and_commands(aliases: &[AliasEntry], commands: &[CommandEntry]) -> String {
+    let mut lines = String::from("unalias -a 2>/dev/null\n");
+
+    for alias in aliases {
+        let name = sanitize_shell_name(&alias.name);
+        if name.is_empty() {
+            continue;
+        }
+        lines.push_str(&format!(
+            "alias {name}='{}'\n",
+            escape_single_quoted(&alias.command)
+        ));
+    }
+
+    for command in commands {
+        let name = sanitize_shell_name(&command.name);
+        if name.is_empty() {
+            continue;
+        }
+        lines.push_str(&format!(
+            "{name}() {{ {} \"$@\"; }}\n",
+            command.script.trim()
+        ));
+    }
+
+    lines
+}
+
+fn write_bash_init_file(
+    aliases: &[AliasEntry],
+    commands: &[CommandEntry],
+) -> Result<(), String> {
+    let contents = generate_bash_init(aliases, commands);
+    fs::write(BASH_INIT_PATH, contents)
         .map_err(|error| format!("failed to write ShellForge bash init: {error}"))
 }
 
-fn bash_init_contents() -> &'static str {
-    r#"# ShellForge bash initialization.
+fn generate_bash_init(aliases: &[AliasEntry], commands: &[CommandEntry]) -> String {
+    let mut contents = String::from(
+        r#"# ShellForge bash initialization.
 if [ -f "$HOME/.bashrc" ]; then
   source "$HOME/.bashrc"
 fi
@@ -241,7 +347,21 @@ __sf_prompt_command() {
 
 PROMPT_COMMAND=__sf_prompt_command
 PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\] \[\033[01;34m\]\w\[\033[00m\]\[\033[97m\]$(__sf_git_branch)\[\033[00m\]> '
-"#
+"#,
+    );
+
+    contents.push_str(&format_aliases_and_commands(aliases, commands));
+    contents
+}
+
+fn sanitize_shell_name(name: &str) -> String {
+    name.chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '_' || *ch == '-')
+        .collect()
+}
+
+fn escape_single_quoted(value: &str) -> String {
+    value.replace('\'', "'\\''")
 }
 
 fn current_directory_title() -> String {

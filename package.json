@@ -1,6 +1,6 @@
 {
   "name": "shellforge",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A fast native terminal emulator for Linux and macOS.",
   "type": "module",
   "scripts": {
@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
+    "start:dev": "bash start_dev.sh",
     "tauri:build": "tauri build",
     "tauri:build:deb": "tauri build --bundles deb",
     "tauri:build:dmg": "tauri build --bundles dmg"
@@ -15,6 +16,7 @@
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
+    "@tabler/icons-webfont": "^3.44.0",
     "@tauri-apps/api": "2",
     "@xterm/addon-fit": "latest",
     "@xterm/xterm": "latest",

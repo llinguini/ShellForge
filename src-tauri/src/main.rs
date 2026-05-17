@@ -1,12 +1,21 @@
 mod clipboard;
+mod credentials;
+mod daemon;
 mod history;
+mod profile;
 mod pty;
+mod settings;
 mod socket;
 
 use clipboard::ClipboardSource;
+use credentials::{check_credentials as credentials_configured, save_credentials as persist_credentials};
+use credentials::CredentialsStatus;
+use daemon::DaemonProcess;
 use history::HistoryStore;
+use profile::{load_initial_profile as fetch_initial_profile, InitialProfile};
 use pty::{PtyCreated, PtyManager};
-use tauri::State;
+use settings::{AccountInfo, SyncSettings};
+use tauri::{Manager, State};
 
 #[tauri::command]
 fn create_pty(
@@ -75,12 +84,54 @@ fn get_history_suggestions_filtered(
     history.filtered_suggestions(&prefix, &cwd, limit)
 }
 
+#[tauri::command]
+fn check_credentials() -> CredentialsStatus {
+    credentials_configured()
+}
+
+#[tauri::command]
+async fn save_credentials(
+    api_url: String,
+    email: String,
+    password: String,
+) -> Result<(), String> {
+    persist_credentials(api_url, email, password).await
+}
+
+#[tauri::command]
+async fn load_initial_profile() -> InitialProfile {
+    fetch_initial_profile().await
+}
+
+#[tauri::command]
+async fn get_account_info() -> AccountInfo {
+    settings::get_account_info().await
+}
+
+#[tauri::command]
+fn logout() -> Result<(), String> {
+    settings::logout()
+}
+
+#[tauri::command]
+async fn get_sync_settings() -> SyncSettings {
+    settings::get_sync_settings().await
+}
+
+#[tauri::command]
+async fn update_sync_setting(key: String, value: bool) -> Result<(), String> {
+    settings::update_sync_setting(key, value).await
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(PtyManager::new())
         .manage(HistoryStore::new().expect("failed to initialize ShellForge history"))
-        .setup(|_app| {
-            socket::spawn_socket_listener();
+        .manage(DaemonProcess::new())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            socket::spawn_socket_listener(handle);
+            app.state::<DaemonProcess>().spawn_managed();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -92,7 +143,15 @@ fn main() {
             write_clipboard_text,
             add_history_entry,
             get_history_suggestion,
-            get_history_suggestions_filtered
+            get_history_suggestions_filtered,
+            check_credentials,
+            save_credentials,
+            load_initial_profile,
+            pty::rebuild_bash_init,
+            get_account_info,
+            logout,
+            get_sync_settings,
+            update_sync_setting
         ])
         .run(tauri::generate_context!())
         .expect("failed to run ShellForge");

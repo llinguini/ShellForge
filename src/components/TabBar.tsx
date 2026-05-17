@@ -9,6 +9,7 @@ interface TabBarProps {
   tabs: ShellTab[];
   activeId: string | null;
   onCreate: () => void;
+  onOpenSettings: () => void;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onRename: (id: string, title: string) => void;
@@ -18,6 +19,7 @@ export function TabBar({
   tabs,
   activeId,
   onCreate,
+  onOpenSettings,
   onSelect,
   onClose,
   onRename,
@@ -111,6 +113,14 @@ export function TabBar({
       </div>
       <button aria-label="New tab" className="tab-new" onClick={onCreate} type="button">
         +
+      </button>
+      <button
+        aria-label="Settings"
+        className="tab-settings"
+        onClick={onOpenSettings}
+        type="button"
+      >
+        <i className="ti ti-settings" aria-hidden="true" />
       </button>
     </div>
   );

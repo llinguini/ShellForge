@@ -1,3 +1,5 @@
+@import "@tabler/icons-webfont/dist/tabler-icons.min.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -212,5 +214,271 @@
 
   .context-menu-divider {
     @apply my-0 h-px bg-sf-b1;
+  }
+
+  .sf-input {
+    @apply w-full border border-sf-b1 bg-sf-bg px-3 py-2 text-menu text-sf-text outline-none;
+    border-radius: 4px;
+  }
+
+  .sf-input:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  .btn-primary {
+    @apply w-full cursor-pointer border-0 bg-sf-text px-3 py-2 text-menu text-sf-bg;
+    border-radius: 4px;
+  }
+
+  .btn-primary:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  .btn-ghost {
+    @apply w-full cursor-pointer border-0 bg-transparent px-3 py-1.5 text-sf-muted;
+    font-size: 11px;
+  }
+
+  .btn-ghost:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  .login-modal-overlay {
+    @apply fixed inset-0 z-30 flex items-center justify-center backdrop-blur;
+  }
+
+  .login-modal-card {
+    width: 380px;
+    border: 1px solid #333028;
+    border-radius: 8px;
+    background: #1a1814;
+    padding: 24px;
+  }
+
+  .login-modal-title {
+    @apply m-0 text-center;
+  }
+
+  .login-modal-subtitle {
+    @apply m-0 mb-5 mt-1 text-center;
+  }
+
+  .login-modal-field {
+    @apply mb-3 flex flex-col gap-1;
+  }
+
+  .login-modal-label {
+    @apply text-menu text-sf-muted;
+  }
+
+  .login-modal-error {
+    @apply m-0 mb-3 text-menu;
+  }
+
+  .login-modal-connect {
+    @apply mt-2;
+  }
+
+  .login-modal-skip {
+    @apply mt-2;
+  }
+
+  .tab-settings {
+    display: flex;
+    width: 32px;
+    height: 36px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-left: 1px solid #333028;
+    background: transparent;
+    color: #6b6558;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .tab-settings:hover {
+    color: #ede6d6;
+  }
+
+  .settings-modal-overlay {
+    @apply fixed inset-0 z-30 flex items-center justify-center;
+    backdrop-filter: blur(4px);
+  }
+
+  .settings-modal {
+    display: flex;
+    width: 560px;
+    max-height: 80vh;
+    flex-direction: column;
+    border: 1px solid #333028;
+    border-radius: 8px;
+    background: #1a1814;
+  }
+
+  .settings-modal-header {
+    @apply flex shrink-0 items-center justify-between border-b border-sf-b1 px-5 py-4;
+  }
+
+  .settings-modal-title {
+    @apply m-0 font-semibold text-sf-text;
+    font-size: 13px;
+  }
+
+  .settings-modal-close {
+    @apply flex h-8 w-8 cursor-pointer items-center justify-center border-0 bg-transparent
+      text-xl leading-none text-sf-muted;
+  }
+
+  .settings-modal-close:hover {
+    @apply text-sf-text;
+  }
+
+  .settings-modal-body {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .settings-nav {
+    display: flex;
+    width: 160px;
+    flex-shrink: 0;
+    flex-direction: column;
+    gap: 2px;
+    border-right: 1px solid #333028;
+    padding: 12px 8px;
+  }
+
+  .nav-item {
+    @apply cursor-pointer border-0 bg-transparent px-3 py-2 text-left text-menu text-sf-muted;
+    border-radius: 4px;
+  }
+
+  .nav-item:hover {
+    @apply bg-sf-s2 text-sf-text;
+  }
+
+  .nav-item-active {
+    @apply bg-sf-s2 text-sf-text;
+  }
+
+  .settings-content {
+    min-width: 0;
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+  }
+
+  .settings-section {
+    @apply flex flex-col gap-4;
+  }
+
+  .settings-field {
+    @apply flex flex-col gap-1;
+  }
+
+  .settings-label {
+    @apply text-menu text-sf-muted;
+  }
+
+  .settings-muted {
+    @apply m-0 text-menu text-sf-muted;
+  }
+
+  .settings-member-since {
+    @apply m-0 text-menu text-sf-muted;
+  }
+
+  .settings-input-readonly {
+    opacity: 0.6;
+  }
+
+  .badge-online,
+  .badge-offline {
+    @apply inline-flex w-fit rounded px-2 py-0.5 text-menu;
+    border-radius: 4px;
+  }
+
+  .badge-online {
+    background: rgba(90, 173, 122, 0.2);
+    color: #5aad7a;
+  }
+
+  .badge-offline {
+    background: rgba(192, 80, 80, 0.15);
+    color: #c05050;
+  }
+
+  .btn-danger {
+    @apply cursor-pointer border border-[#c05050] bg-transparent px-3 py-2 text-menu
+      text-[#c05050];
+    border-radius: 4px;
+  }
+
+  .btn-danger:hover {
+    background: rgba(192, 80, 80, 0.12);
+  }
+
+  .settings-logout-confirm {
+    @apply flex flex-col items-start gap-2;
+  }
+
+  .settings-toggle-list {
+    @apply m-0 flex list-none flex-col gap-3 p-0;
+  }
+
+  .settings-toggle-row {
+    @apply flex items-center justify-between gap-4;
+  }
+
+  .settings-toggle-label {
+    @apply text-menu text-sf-text;
+  }
+
+  .settings-toggle-actions {
+    @apply flex items-center gap-2;
+  }
+
+  .settings-saved {
+    @apply text-menu text-[#5aad7a];
+  }
+
+  .sf-toggle {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    flex-shrink: 0;
+    border: 0;
+    border-radius: 9px;
+    background: #333028;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.15s ease;
+  }
+
+  .sf-toggle:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  .sf-toggle-active {
+    background: #5aad7a;
+  }
+
+  .sf-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+    transition: transform 0.15s ease;
+  }
+
+  .sf-toggle-active .sf-toggle-thumb {
+    transform: translateX(14px);
   }
 }
