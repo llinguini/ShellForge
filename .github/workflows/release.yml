@@ -69,16 +69,12 @@ jobs:
             fs.writeFileSync(path, update(fs.readFileSync(path, "utf8")));
           };
 
-          updateJson("package.json", (json) => {
-            json.version = version;
-          });
+          updateJson("package.json", (json) => { json.version = version; });
           updateJson("package-lock.json", (json) => {
             json.version = version;
             json.packages[""].version = version;
           });
-          updateJson("src-tauri/tauri.conf.json", (json) => {
-            json.version = version;
-          });
+          updateJson("src-tauri/tauri.conf.json", (json) => { json.version = version; });
           updateText("src-tauri/Cargo.toml", (text) =>
             text.replace(/^version = ".*"$/m, `version = "${version}"`),
           );
@@ -92,6 +88,28 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Build daemon (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo build --release --manifest-path src-daemon/Cargo.toml
+          mkdir -p src-tauri/binaries
+          cp src-daemon/target/release/shellforge-daemon \
+             src-tauri/binaries/shellforge-daemon-x86_64-unknown-linux-gnu
+
+      - name: Build daemon (macOS universal)
+        if: matrix.os == 'macos-latest'
+        run: |
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin \
+            --manifest-path src-daemon/Cargo.toml
+          cargo build --release --target aarch64-apple-darwin \
+            --manifest-path src-daemon/Cargo.toml
+          mkdir -p src-tauri/binaries
+          lipo -create -output \
+            src-tauri/binaries/shellforge-daemon-universal-apple-darwin \
+            src-daemon/target/x86_64-apple-darwin/release/shellforge-daemon \
+            src-daemon/target/aarch64-apple-darwin/release/shellforge-daemon
 
       - uses: tauri-apps/tauri-action@v0
         env:

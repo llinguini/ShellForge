@@ -40,17 +40,17 @@ if [[ ! -d node_modules ]]; then
 fi
 
 DAEMON_DIR="$ROOT/src-daemon"
-TAURI_TARGET="${CARGO_TARGET_DIR:-$ROOT/src-tauri/target}"
-DEBUG_DIR="$TAURI_TARGET/debug"
-DAEMON_BIN="$DEBUG_DIR/shellforge-daemon"
+HOST_TRIPLE="$(rustc --print host-tuple)"
+BINARIES_DIR="$ROOT/src-tauri/binaries"
+SIDEcar_BIN="$BINARIES_DIR/shellforge-daemon-$HOST_TRIPLE"
 
 log "Building shellforge-daemon (debug)..."
 cargo build --manifest-path "$DAEMON_DIR/Cargo.toml"
 
-mkdir -p "$DEBUG_DIR"
-cp -f "$DAEMON_DIR/target/debug/shellforge-daemon" "$DAEMON_BIN"
-chmod +x "$DAEMON_BIN"
-log "Installed daemon at $DAEMON_BIN"
+mkdir -p "$BINARIES_DIR"
+cp -f "$DAEMON_DIR/target/debug/shellforge-daemon" "$SIDEcar_BIN"
+chmod +x "$SIDEcar_BIN"
+log "Installed daemon sidecar at $SIDEcar_BIN"
 
 log "Starting Tauri dev (Ctrl+C to stop)..."
 exec npm run tauri:dev

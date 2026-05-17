@@ -12,6 +12,9 @@
 
 - Account settings now loads user data from `GET /v1/user/me` (display name,
   member since)
+- Release pipeline and Tauri bundle now ship `shellforge-daemon` as an
+  `externalBin` sidecar in `.deb` and `.dmg` packages; dev installs the sidecar
+  via `start_dev.sh` into `src-tauri/binaries/`
 - `shellforge-daemon` sidecar binary (`src-daemon/`) for token refresh, WebSocket
   relay to `/tmp/shellforge.sock`, and batched history sync to the ShellForge API
 - First-run login modal with `check_credentials` and `save_credentials` Tauri

@@ -58,8 +58,13 @@ the workspace and split-panel xterm.js UI.
   JetBrains Mono (terminal). Window chrome uses the native OS title bar.
 - npm commands should run under Node 20 via nvm:
   `nvm use 20` (v20.20.2 installed at `~/.nvm`).
-- `./start_dev.sh` (or `npm run start:dev`) builds `shellforge-daemon`, copies it
-  to `src-tauri/target/debug/`, then runs `tauri dev`.
+- `./start_dev.sh` (or `npm run start:dev`) builds `shellforge-daemon` and copies
+  it to `src-tauri/binaries/shellforge-daemon-<host-triple>` (Tauri
+  `externalBin` sidecar), then runs `tauri dev`.
+- Release CI (`.github/workflows/release.yml`) builds the daemon per platform
+  (Linux x86_64, macOS universal via `lipo`) before `tauri-action` bundles
+  `.deb` / `.dmg`. Compiled sidecars are gitignored; only `binaries/.gitkeep`
+  is tracked.
 
 ## Runtime Notes
 

@@ -125,13 +125,23 @@ async fn update_sync_setting(key: String, value: bool) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .manage(PtyManager::new())
         .manage(HistoryStore::new().expect("failed to initialize ShellForge history"))
         .manage(DaemonProcess::new())
         .setup(|app| {
             let handle = app.handle().clone();
             socket::spawn_socket_listener(handle);
-            app.state::<DaemonProcess>().spawn_managed();
+
+            if let Ok(resource_path) = app.path().resolve(
+                "binaries/shellforge-daemon",
+                tauri::path::BaseDirectory::Resource,
+            ) {
+                if let Ok(child) = std::process::Command::new(resource_path).spawn() {
+                    app.state::<DaemonProcess>().set_child(child);
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
