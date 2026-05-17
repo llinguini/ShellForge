@@ -15,6 +15,8 @@
 - Release pipeline and Tauri bundle now ship `shellforge-daemon` as an
   `externalBin` sidecar in `.deb` and `.dmg` packages; dev installs the sidecar
   via `start_dev.sh` into `src-tauri/binaries/`
+- macOS release CI copies aarch64 and x86_64 sidecar names (not only universal)
+  so Tauri finds the binary on Apple Silicon runners
 - `shellforge-daemon` sidecar binary (`src-daemon/`) for token refresh, WebSocket
   relay to `/tmp/shellforge.sock`, and batched history sync to the ShellForge API
 - First-run login modal with `check_credentials` and `save_credentials` Tauri

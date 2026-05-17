@@ -62,9 +62,10 @@ the workspace and split-panel xterm.js UI.
   it to `src-tauri/binaries/shellforge-daemon-<host-triple>` (Tauri
   `externalBin` sidecar), then runs `tauri dev`.
 - Release CI (`.github/workflows/release.yml`) builds the daemon per platform
-  (Linux x86_64, macOS universal via `lipo`) before `tauri-action` bundles
-  `.deb` / `.dmg`. Compiled sidecars are gitignored; only `binaries/.gitkeep`
-  is tracked.
+  (Linux x86_64, macOS via `lipo` plus per-arch copies) before `tauri-action`
+  bundles `.deb` / `.dmg`. On macOS runners Tauri looks for
+  `shellforge-daemon-aarch64-apple-darwin`, not only the universal filename.
+  Compiled sidecars are gitignored; only `binaries/.gitkeep` is tracked.
 
 ## Runtime Notes
 

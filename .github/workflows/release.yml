@@ -106,10 +106,17 @@ jobs:
           cargo build --release --target aarch64-apple-darwin \
             --manifest-path src-daemon/Cargo.toml
           mkdir -p src-tauri/binaries
+          DAEMON_AARCH64=src-daemon/target/aarch64-apple-darwin/release/shellforge-daemon
+          DAEMON_X86=src-daemon/target/x86_64-apple-darwin/release/shellforge-daemon
+          BINARIES=src-tauri/binaries
           lipo -create -output \
-            src-tauri/binaries/shellforge-daemon-universal-apple-darwin \
-            src-daemon/target/x86_64-apple-darwin/release/shellforge-daemon \
-            src-daemon/target/aarch64-apple-darwin/release/shellforge-daemon
+            "$BINARIES/shellforge-daemon-universal-apple-darwin" \
+            "$DAEMON_X86" \
+            "$DAEMON_AARCH64"
+          # Tauri resolves externalBin by the build host triple (aarch64 on
+          # macos-latest), not only the universal name.
+          cp "$DAEMON_AARCH64" "$BINARIES/shellforge-daemon-aarch64-apple-darwin"
+          cp "$DAEMON_X86" "$BINARIES/shellforge-daemon-x86_64-apple-darwin"
 
       - uses: tauri-apps/tauri-action@v0
         env:
