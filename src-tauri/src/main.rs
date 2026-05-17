@@ -123,6 +123,40 @@ async fn update_sync_setting(key: String, value: bool) -> Result<(), String> {
     settings::update_sync_setting(key, value).await
 }
 
+fn find_daemon_binary(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    // 1. Production path (inside Tauri bundle resources)
+    if let Ok(path) = app.path().resolve(
+        "binaries/shellforge-daemon",
+        tauri::path::BaseDirectory::Resource,
+    ) {
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    // 2. Dev path (next to the debug executable)
+    if let Ok(exe) = std::env::current_exe() {
+        let dev_path = exe
+            .parent()
+            .unwrap_or(std::path::Path::new("."))
+            .join("shellforge-daemon");
+        if dev_path.exists() {
+            return Some(dev_path);
+        }
+    }
+
+    // 3. binaries/ relative to workspace root (dev fallback; matches start_dev.sh)
+    let workspace_path = std::path::PathBuf::from(format!(
+        "src-tauri/binaries/shellforge-daemon-{}",
+        env!("BUILD_TARGET_TRIPLE")
+    ));
+    if workspace_path.exists() {
+        return Some(workspace_path);
+    }
+
+    None
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -131,15 +165,20 @@ fn main() {
         .manage(DaemonProcess::new())
         .setup(|app| {
             let handle = app.handle().clone();
-            socket::spawn_socket_listener(handle);
+            socket::spawn_socket_listener(handle.clone());
 
-            if let Ok(resource_path) = app.path().resolve(
-                "binaries/shellforge-daemon",
-                tauri::path::BaseDirectory::Resource,
-            ) {
-                if let Ok(child) = std::process::Command::new(resource_path).spawn() {
-                    app.state::<DaemonProcess>().set_child(child);
+            if let Some(daemon_path) = find_daemon_binary(&handle) {
+                println!("ShellForge: launching daemon from {:?}", daemon_path);
+                match std::process::Command::new(&daemon_path).spawn() {
+                    Ok(child) => {
+                        app.state::<DaemonProcess>().set_child(child);
+                    }
+                    Err(error) => {
+                        println!("ShellForge: failed to launch daemon: {error}");
+                    }
                 }
+            } else {
+                println!("ShellForge: daemon binary not found, running without sync");
             }
 
             Ok(())

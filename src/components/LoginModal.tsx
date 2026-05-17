@@ -74,7 +74,7 @@ export function LoginModal({ onClose }: LoginModalProps) {
           <input
             className="sf-input"
             type="url"
-            placeholder="https://api.shellforge.dev"
+            placeholder="https://api.shellforge.pro"
             value={apiUrl}
             disabled={loading}
             onChange={(event) => setApiUrl(event.target.value)}
